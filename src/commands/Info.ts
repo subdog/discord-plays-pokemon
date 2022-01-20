@@ -2,6 +2,7 @@ import { Message, MessageEmbed } from 'discord.js';
 import { Prefix } from '../Config';
 import { getDiscordInstance } from '../DiscordClient';
 import { getGameboyInstance } from '../GameboyClient';
+import { Log } from '../Log';
 import { Command } from '../types/Command';
 
 const command: Command = {
@@ -10,6 +11,10 @@ const command: Command = {
   execute,
   adminOnly: false,
 };
+
+// function safeEmbedAddField(embed: MessageEmbed, name: string, value: string, inline?: boolean){
+//   embed.addField(name, value, inline);
+// }
 
 function execute(_msg: Message, args: string[]): void {
   const client = getDiscordInstance();
@@ -20,9 +25,14 @@ function execute(_msg: Message, args: string[]): void {
 
   if (args.length === 0) {
     const shortEmbed = new MessageEmbed();
-    shortEmbed.setAuthor(stats.playerName);
+    shortEmbed.setAuthor({name: stats.playerName});
     shortEmbed.addField('Money', '§' + stats.money, true);
-    shortEmbed.addField('Rival', stats.rivalName, true);
+    if (! stats.rivalName) {
+      shortEmbed.addField('Rival', '???', true);
+    } else {
+      shortEmbed.addField('Rival', stats.rivalName, true);
+    }
+
     shortEmbed.addField('Time', stats.time, true);
     shortEmbed.addField(
       'Location',
@@ -76,10 +86,10 @@ function execute(_msg: Message, args: string[]): void {
           .map(({ name, pp, maxPp }) => `${name} ${pp}/${maxPp} PP`)
           .join(', ')
       );
-      pokemonEmbed.addField('Attack', pokemon.attack, true);
-      pokemonEmbed.addField('Defense', pokemon.defense, true);
-      pokemonEmbed.addField('Speed', pokemon.speed, true);
-      pokemonEmbed.addField('Special', pokemon.special, true);
+      pokemonEmbed.addField('Attack', pokemon.attack.toString(), true);
+      pokemonEmbed.addField('Defense', pokemon.defense.toString(), true);
+      pokemonEmbed.addField('Speed', pokemon.speed.toString(), true);
+      pokemonEmbed.addField('Special', pokemon.special.toString(), true);
 
       client.sendMessage(pokemonEmbed);
     } catch (error) {

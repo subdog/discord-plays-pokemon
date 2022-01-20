@@ -1,9 +1,11 @@
 import Discord, {
+  Intents,
   MessageAttachment,
   MessageEmbed,
   TextChannel,
 } from 'discord.js';
 import glob from 'glob';
+import { type } from 'os';
 import { promisify } from 'util';
 import { DiscordChannelId, Prefix } from './Config';
 import { Log } from './Log';
@@ -28,7 +30,9 @@ class DiscordClient {
 
   constructor(token: string) {
     this._token = token;
-    this._client = new Discord.Client();
+    const myIntents = new Intents();
+    myIntents.add(Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGE_REACTIONS);
+    this._client = new Discord.Client({ intents: myIntents });
     this._channel = this._client.channels.cache.get(
       DiscordChannelId
     ) as TextChannel;
@@ -44,12 +48,9 @@ class DiscordClient {
         DiscordChannelId
       ) as TextChannel;
       if (this._client.user) {
-        this._client.user
-          .setActivity(`${Prefix}help`, { type: 'LISTENING' })
-          .then((presence) =>
-            Log.info(`Activity set to ${presence.activities[0].name}`)
-          )
-          .catch(Log.error);
+        var presence = this._client.user
+        .setActivity(`${Prefix}help`, { type: 'LISTENING' })
+        Log.info(`Activity set to ${presence.activities[0].name}`)
       }
       const commandFiles = await globPromise(`${__dirname}/commands/*.{js,ts}`);
 
@@ -78,7 +79,7 @@ class DiscordClient {
       const command = this._commands.find((c) => c.names.includes(commandName));
 
       if (command) {
-        const isAdmin = message.member?.hasPermission('ADMINISTRATOR');
+        const isAdmin = message.member?.permissions.has('ADMINISTRATOR');
         if (command.adminOnly && !isAdmin) {
           this.sendMessage('This command is for admins only');
         } else {
@@ -102,11 +103,25 @@ class DiscordClient {
         'Could not send message, text channel was not initialised yet.'
       );
     }
-    if (attachment) {
-      return this._channel.send(text, attachment);
+    
+    if (typeof text == "string"){
+      if (attachment) {
+        return this._channel.send({content: text, files: [attachment]});
+      } else {
+        return this._channel.send(text);
+      }
+    } else if (text instanceof MessageEmbed){
+
+      if (attachment) {
+        return this._channel.send({embeds: [text], files: [attachment]});
+      } else {
+        return this._channel.send({embeds: [text]});
+      }
     } else {
-      return this._channel.send(text);
+      Log.error('Unknown message content type.');
+      return;
     }
+
   }
 }
 

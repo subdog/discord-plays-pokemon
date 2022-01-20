@@ -133,7 +133,7 @@ class GameboyClient {
     if (savePath) {
       savePath.replace(/[^\w\s]/gi, '');
     } else {
-      savePath = new Date().toISOString();
+      savePath = new Date().toISOString().replace(':','_');
     }
     savePath = './saves/' + savePath + '.sav';
     const saveState = this._gameboy.saveState();

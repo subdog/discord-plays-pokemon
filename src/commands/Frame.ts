@@ -49,8 +49,9 @@ async function postFrame() {
   );
 
   try {
+    var filename = new Date().toISOString().replace(':','_')
     await fs.writeFile(
-      `./frames/current/${new Date().toISOString()}.png`,
+      `./frames/current/${filename}.png`,
       buffer
     );
   } catch (error) {
@@ -62,11 +63,13 @@ async function postFrame() {
       DemocracyTimeout +
       (Object.values(ButtonReaction).length +
         Object.values(RepeatReaction).length) *
-        1000,
+      1000,
     dispose: true,
   };
   if (CurrentGamemode === Gamemode.Anarchy) {
     awaitReactionOptions.max = 1;
+  } else {
+    awaitReactionOptions.max = 0;
   }
   const filter = (reaction: MessageReaction, user: User) => {
     const buttonReaction =
@@ -79,23 +82,35 @@ async function postFrame() {
       !user.bot
     );
   };
-  const collector = message.createReactionCollector(
+
+  if (message == undefined) {
+    Log.error('Message is undefined.');
+    return;
+  }
+
+  const collector = message.createReactionCollector({
     filter,
-    awaitReactionOptions
+    time: awaitReactionOptions.time,
+    max: awaitReactionOptions.max
+  }
   );
   const collectedReactions: CollectedReactions = {};
 
   collector.on('collect', (reaction, user) => {
     Log.info(`Collected ${reaction.emoji.name} from ${user.tag}`);
-    if (!collectedReactions.hasOwnProperty(reaction.emoji.name)) {
-      collectedReactions[reaction.emoji.name] = new Set();
+    if (reaction.emoji.name != null) {
+      if (!collectedReactions.hasOwnProperty(reaction.emoji.name)) {
+        collectedReactions[reaction.emoji.name] = new Set();
+      }
+      collectedReactions[reaction.emoji.name].add(user.tag);
     }
-    collectedReactions[reaction.emoji.name].add(user.tag);
   });
 
   collector.on('remove', (reaction, user) => {
     Log.info(`Removed ${reaction.emoji.name} from ${user.tag}`);
-    collectedReactions[reaction.emoji.name].delete(user.tag);
+    if (reaction.emoji.name != null) {
+      collectedReactions[reaction.emoji.name].delete(user.tag);
+    }
   });
 
   collector.on('end', () => {
