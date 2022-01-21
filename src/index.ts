@@ -18,7 +18,7 @@ import { initDiscord, getDiscordInstance } from './DiscordClient';
 import { getGameboyInstance } from './GameboyClient';
 import { makeGif } from './Gifmaker';
 import { Log } from './Log';
-import { SocketServer } from './SocketServer';
+// import { SocketServer } from './SocketServer';
 
 Log.info('Starting Discord Plays Pokémon');
 
@@ -61,7 +61,7 @@ if (!discordClient) {
 }
 discordClient.start();
 
-const socketServer = new SocketServer();
+// const socketServer = new SocketServer();
 
 if (SaveStateInterval > 0) {
   setInterval(
@@ -70,12 +70,12 @@ if (SaveStateInterval > 0) {
   );
 }
 
-cron.schedule('0 */2 * * *', makeGif);
+// cron.schedule('0 */2 * * *', makeGif);
 
-setInterval(() => {
-  const imageString = getGameboyInstance().getFrame().toString('base64');
-  socketServer.sendMessage(imageString);
-}, 100); // send 10 frames each second
+// setInterval(() => {
+//   const imageString = getGameboyInstance().getFrame().toString('base64');
+//   socketServer.sendMessage(imageString);
+// }, 100); // send 10 frames each second
 
 async function loadSaveState() {
   const saveStates = await getGameboyInstance().getSaveStates();
@@ -88,9 +88,7 @@ async function loadSaveState() {
 }
 loadSaveState();
 
-// TODO web view with discord reactions
 // TODO fix race condition on rapid .frame call
 // TODO map view command
-// TODO faster text
 // TODO show current XP of pokemon
 // TODO show XP until next lvl

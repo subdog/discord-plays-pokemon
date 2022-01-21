@@ -18,7 +18,7 @@ export async function makeGif(): Promise<void> {
   const encoder = new GIFEncoder(SCREEN_WIDTH * Scale, SCREEN_HEIGHT * Scale);
 
   const outputFilename = `./frames/summary/${dayjs().format(
-    'YYYY-MM-DDTHH:mm'
+    'YYYY-MM-DDTHH-mm-ss'
   )}.gif`;
   const imageFiles = await globPromise(`./frames/current/*.png`);
   const frameCounter = imageFiles.length;
@@ -49,7 +49,7 @@ async function postGif(filePath: string, frameCounter: number): Promise<void> {
   const buffer = await fs.readFile(filePath);
   const attachment = new Discord.MessageAttachment(buffer, 'summary.gif');
   client.sendMessage(
-    `Summary of the last two hours. ${frameCounter} moves were made.`,
+    ` `,
     attachment
   );
 }

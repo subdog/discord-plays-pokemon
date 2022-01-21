@@ -3,21 +3,20 @@ import Discord, {
   MessageActionRow,
   MessageButton,
 } from 'discord.js';
+import {
+  GIF_MAX_IMAGES
+} from '../Constants';
 import fs from 'fs/promises';
-import { CurrentGamemode, DemocracyTimeout, Prefix } from '../Config';
-import { MAX_FAILED_ATTEMPTS } from '../Constants';
 import { getDiscordInstance } from '../DiscordClient';
-import { Gamemode } from '../enums/Gamemode';
-// import { ButtonReaction, ReverseButtonReaction } from '../enums/ButtonReaction';
-import { ButtonIdMapping, ReverseButtonIdMapping } from '../enums/ButtonIdMapping';
+import { ButtonIdMapping } from '../enums/ButtonIdMapping';
 import { getGameboyInstance } from '../GameboyClient';
 import { Log } from '../Log';
-// import { CollectedReactions } from '../types/CollectedReactions';
 import { Command } from '../types/Command';
-// import { ReactionsCounter } from '../types/ReactionsCounter';
-import { RepeatReaction } from '../enums/RepeatReaction';
+import { makeGif } from '../Gifmaker';
 
 var previousInteraction: Discord.MessageComponentInteraction<Discord.CacheType>;
+var imageCountForGif = 0;
+const IMAGE_COUNT_MAX = GIF_MAX_IMAGES;
 
 const command: Command = {
   names: ['frame', 'f'],
@@ -31,8 +30,8 @@ function execute(): void {
   postFrame(true);
 }
 
-async function postFrame(isManuallyInvoked? : boolean) {
-  Log.debug ('In postFrame()');
+async function postFrame(isManuallyInvoked?: boolean) {
+  Log.debug('In postFrame()');
   let reactionsLoaded = false;
   const buffer = getGameboyInstance().getFrame();
   const attachment = new Discord.MessageAttachment(buffer, 'frame.png');
@@ -85,7 +84,7 @@ async function postFrame(isManuallyInvoked? : boolean) {
 
   const allRows = [firstRow, secondRow];
   var message;
-  if (previousInteraction && ! isManuallyInvoked) {
+  if (previousInteraction && !isManuallyInvoked) {
     message = await client.sendMessage(
       ' ',
       attachment,
@@ -101,7 +100,7 @@ async function postFrame(isManuallyInvoked? : boolean) {
   }
 
   try {
-    var filename = new Date().toISOString().replace(':', '_')
+    var filename = new Date().toISOString().replace(/[:.]+/g, '');
     await fs.writeFile(
       `./frames/current/${filename}.png`,
       buffer
@@ -116,7 +115,7 @@ async function postFrame(isManuallyInvoked? : boolean) {
   }
 
   const filter = () => true;
-  const collector = message.createMessageComponentCollector({ filter, max: 1 });
+  const collector = message.createMessageComponentCollector({ filter, max: 5 });
 
   // const collectedReactions: CollectedReactions = {};
   const collectedButtonPushes =
@@ -130,12 +129,24 @@ async function postFrame(isManuallyInvoked? : boolean) {
       getGameboyInstance().hyperSpeedOn();
       getGameboyInstance().pressKey(actionKey, repeat);
 
-      const delay = (1000/60) + 1;
+      const delay = (1000 / 60) + 1;
 
-      setTimeout(() => {  postNewFrame(); }, delay);
-      const previousMessage = i.message as Message <boolean>;
-      setTimeout(() => {previousMessage.edit({components: []});}, delay);
+      setTimeout(() => { postNewFrame(); }, delay);
+      const previousMessage = i.message as Message<boolean>;
+      setTimeout(() => { previousMessage.edit({ components: [] }); }, delay);
+      setTimeout(() => { collector.stop() }, 10000);
     });
+
+    // If enough images, call gifmaker
+    gifCheck()
+}
+
+function gifCheck() {
+  imageCountForGif++;
+  if (imageCountForGif >= IMAGE_COUNT_MAX) {
+    imageCountForGif = 0;
+    makeGif();
+  }
 }
 
 function postNewFrame() {
@@ -143,7 +154,7 @@ function postNewFrame() {
   if (!client) {
     throw new Error('Discord client not initialised');
   }
-    postFrame();
+  postFrame(false);
 }
 
 export = command;
