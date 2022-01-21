@@ -31,7 +31,6 @@ function execute(): void {
 }
 
 async function postFrame(isManuallyInvoked?: boolean) {
-  Log.debug('In postFrame()');
   let reactionsLoaded = false;
   const buffer = getGameboyInstance().getFrame();
   const attachment = new Discord.MessageAttachment(buffer, 'frame.png');

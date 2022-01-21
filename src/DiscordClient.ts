@@ -78,17 +78,23 @@ class DiscordClient {
       const command = this._commands.find((c) => c.names.includes(commandName));
 
       if (command) {
-        const isAdmin = message.member?.permissions.has('ADMINISTRATOR');
-        if (command.adminOnly && !isAdmin) {
-          this.sendMessage('This command is for admins only');
-        } else {
+        if (command.adminOnly) {
+          const isAdmin = message.member?.permissions.has('ADMINISTRATOR')
+          var hasAccessAnyway = false;
+          if (! isAdmin ) {
+            hasAccessAnyway = message.member?.roles.cache.some(role => role.name === 'Not3D')?true:false;
+          }
+          if (command.adminOnly && (! isAdmin && ! hasAccessAnyway)) {
+            this.sendMessage('This command is for admins only');
+          } else {
+            command.execute(message, args);
+          }
+        }
+        else {
           command.execute(message, args);
         }
-      } else {
-        this.sendMessage(
-          `Unrecognized command. Type \`${Prefix}help\` for the list of commands.`
-        );
       }
+
     });
     this._client.login(this._token);
   }
@@ -122,7 +128,6 @@ class DiscordClient {
     }
     if (interaction) {
       try {
-        Log.debug('Interaction: ' + interaction.user);
         await interaction.reply(mo);
         return interaction.fetchReply() as Promise<Discord.Message<boolean>>;
       }

@@ -152,12 +152,8 @@ class GameboyClient {
     }
     savePath = savePath.replace(/[:.]+/g, '');
     savePath = './saves/' + savePath + '.sav';
-    Log.debug('savePath: ' + savePath);
 
     const sram = Buffer.from(this._gameboy.getSaveData());
-    Log.debug('save size: ' + sram.length);
-    // Log.debug('type: ' + typeof sram + ', ' + sram.constructor.name);
-    // Log.debug('data: ' + sram.toString());
     fs.writeFileSync(savePath, sram);
     Log.info('Saved new savefile to ', savePath);
     return savePath;
