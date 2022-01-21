@@ -23,7 +23,7 @@
     "node-cron": "^3.0.0",
     "png-file-stream": "^1.2.1",
     "pngjs": "^6.0.0",
-    "serverboy": "git+https://github.com/DrSkunk/serverboy.js.git"
+    "serverboy": "git+https://gitlab.com/piglet-plays/serverboy.js.git"
   },
   "devDependencies": {
     "@types/gifencoder": "^2.0.0",

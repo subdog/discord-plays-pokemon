@@ -1,8 +1,6 @@
-import Gameboy from 'serverboy';
+var Gameboy = require('serverboy');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-// const Gameboy = require('../../serverboy.js/src/interface.js');
-import fs from 'fs/promises';
-import { KEYMAP } from 'serverboy';
+import fs from 'fs';
 import { PNG } from 'pngjs';
 import { Scale } from './Config';
 import {
@@ -16,17 +14,19 @@ import { KeysToPress } from './types/KeysToPress';
 import { MemoryReader } from './MemoryReader';
 import { Stats } from './types/Stats';
 
+import {
+  Romfile,
+} from './Config';
+
 // TODO send audio to voice channel
 class GameboyClient {
-  private _gameboy: Gameboy;
   private _timer: NodeJS.Timeout | null;
   private _rendering: boolean;
   private _buffer: Buffer;
   private _keysToPress: KeysToPress;
-  public static Keymap: KEYMAP;
   private _keyRepeat: number;
   private _waitFrameCounter: number;
-
+  private _gameboy;
   constructor() {
     this._gameboy = new Gameboy();
     this._timer = null;
@@ -42,35 +42,38 @@ class GameboyClient {
   }
 
   doFrame(): void {
-    this._gameboy.doFrame();
+    for (let i = 0; i < 10; i++) {
+      this._gameboy.doFrame();
 
-    if (this._waitFrameCounter > 0) {
-      this._waitFrameCounter--;
-    } else {
-      // This is to hold the button for multiple frames to aid button registration
-      Object.keys(this._keysToPress).forEach((key) => {
-        if (this._keysToPress[key] > 0) {
-          this._keysToPress[key]--;
-          this._gameboy.pressKey(key);
-        }
-      });
-      const sum = Object.values(this._keysToPress).reduce(
-        (acc, val) => acc + val,
-        0
-      );
-      if (this._keyRepeat > 0 && sum === 0) {
-        this._waitFrameCounter = FRAME_WAIT;
-        this._keyRepeat--;
+      if (this._waitFrameCounter > 0) {
+        this._waitFrameCounter--;
+      } else {
+        // This is to hold the button for multiple frames to aid button registration
         Object.keys(this._keysToPress).forEach((key) => {
-          this._keysToPress[key] = KEY_HOLD_DURATION;
+          if (this._keysToPress[key] > 0) {
+            this._keysToPress[key]--;
+            this._gameboy.pressKey(key);
+          }
         });
+        const sum = Object.values(this._keysToPress).reduce(
+          (acc, val) => acc + val,
+          0
+        );
+        if (this._keyRepeat > 0 && sum === 0) {
+          this._waitFrameCounter = FRAME_WAIT;
+          this._keyRepeat--;
+          Object.keys(this._keysToPress).forEach((key) => {
+            this._keysToPress[key] = KEY_HOLD_DURATION;
+          });
+        }
       }
     }
   }
 
   start(): void {
-    // approximately 60 FPS
-    this._timer = setInterval(() => this.doFrame(), 1000 / 60);
+    // very fast
+    this._timer = setInterval(() => this.doFrame(), 1);
+    //advance by several frames!
   }
 
   stop(): void {
@@ -131,31 +134,46 @@ class GameboyClient {
   async newSaveState(fileName?: string): Promise<string> {
     let savePath = fileName;
     if (savePath) {
-      savePath.replace(/[^\w\s]/gi, '');
+      savePath = savePath.replace(/[^\w\s]/gi, '');
     } else {
-      savePath = new Date().toISOString().replace(':','_');
+      savePath = new Date().toISOString();
     }
+    savePath = savePath.replace(/[:.]+/g, '');
     savePath = './saves/' + savePath + '.sav';
-    const saveState = this._gameboy.saveState();
-    await fs.writeFile(savePath, JSON.stringify(saveState));
+    Log.debug('savePath: ' + savePath);
+
+    const sram = Buffer.from(this._gameboy.getSaveData());
+    Log.debug('save size: ' + sram.length);
+    // Log.debug('type: ' + typeof sram + ', ' + sram.constructor.name);
+    // Log.debug('data: ' + sram.toString());
+    fs.writeFileSync(savePath, sram);
     Log.info('Saved new savefile to ', savePath);
     return savePath;
   }
 
   async loadSaveState(fileName: string): Promise<void> {
-    const saveState = JSON.parse(
-      await fs.readFile('./saves/' + fileName, { encoding: 'utf-8' })
-    );
-    this._gameboy.returnFromState(saveState);
+    const sram = Buffer.from(fs.readFileSync('./saves/' + fileName));
+    
+    let rom: Buffer;
+    try {
+      rom = fs.readFileSync('./roms/' + Romfile);
+    } catch (error) {
+      Log.error(
+        `Rom file ${Romfile} could not be found in your './roms' directory`
+      );
+      return;
+    }
+    
+    this._gameboy.loadRom(rom, sram);
   }
 
   async getSaveStates(): Promise<string[]> {
     const dir = './saves/';
-    const saveStatesPromise = (await fs.readdir(dir))
+    const saveStatesPromise = (await fs.readdirSync(dir))
       .filter((filename) => filename.endsWith('.sav'))
       .map(async (filename) => ({
         filename,
-        time: (await fs.stat(dir + filename)).mtime.getTime(),
+        time: (fs.statSync(dir + filename)).mtime.getTime(),
       }));
     const saveStates = await Promise.all(saveStatesPromise);
 

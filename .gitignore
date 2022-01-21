@@ -13,3 +13,4 @@ frames/*.png
 .env
 frames/*
 saves/*
+saves/saves_will_appear_here
