@@ -42,19 +42,19 @@ async function postFrame(isManuallyInvoked?: boolean) {
     .addComponents(
       new MessageButton()
         .setCustomId('left')
-        .setLabel('⯇')
+        .setLabel('<')
         .setStyle('PRIMARY'),
       new MessageButton()
         .setCustomId('down')
-        .setLabel('⯆')
+        .setLabel('v')
         .setStyle('PRIMARY'),
       new MessageButton()
         .setCustomId('up')
-        .setLabel('⯅')
+        .setLabel('^')
         .setStyle('PRIMARY'),
       new MessageButton()
         .setCustomId('right')
-        .setLabel('⯈')
+        .setLabel('>')
         .setStyle('PRIMARY'),
     );
   const secondRow = new MessageActionRow()
