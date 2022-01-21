@@ -1,11 +1,12 @@
 import Discord, {
   Intents,
+  MessageActionRow,
   MessageAttachment,
   MessageEmbed,
+  MessageOptions,
   TextChannel,
 } from 'discord.js';
 import glob from 'glob';
-import { type } from 'os';
 import { promisify } from 'util';
 import { DiscordChannelId, Prefix } from './Config';
 import { Log } from './Log';
@@ -22,7 +23,6 @@ class DiscordClient {
   private _channel: Discord.TextChannel;
   private _commands: Command[];
   public sendingMessage: boolean;
-  public failedAttempts: number;
 
   get commands() {
     return this._commands;
@@ -38,7 +38,6 @@ class DiscordClient {
     ) as TextChannel;
     this._commands = [];
     this.sendingMessage = false;
-    this.failedAttempts = 0;
   }
 
   start() {
@@ -49,7 +48,7 @@ class DiscordClient {
       ) as TextChannel;
       if (this._client.user) {
         var presence = this._client.user
-        .setActivity(`${Prefix}help`, { type: 'LISTENING' })
+          .setActivity(`${Prefix}help`, { type: 'LISTENING' })
         Log.info(`Activity set to ${presence.activities[0].name}`)
       }
       const commandFiles = await globPromise(`${__dirname}/commands/*.{js,ts}`);
@@ -94,34 +93,47 @@ class DiscordClient {
     this._client.login(this._token);
   }
 
+
   async sendMessage(
     text: string | MessageEmbed,
-    attachment?: MessageAttachment
+    attachment?: MessageAttachment,
+    row?: MessageActionRow[],
+    interaction?: Discord.MessageComponentInteraction<Discord.CacheType>
   ) {
     if (!this._channel) {
       throw new Error(
         'Could not send message, text channel was not initialised yet.'
       );
     }
-    
-    if (typeof text == "string"){
-      if (attachment) {
-        return this._channel.send({content: text, files: [attachment]});
-      } else {
-        return this._channel.send(text);
-      }
-    } else if (text instanceof MessageEmbed){
 
-      if (attachment) {
-        return this._channel.send({embeds: [text], files: [attachment]});
-      } else {
-        return this._channel.send({embeds: [text]});
-      }
-    } else {
-      Log.error('Unknown message content type.');
-      return;
+    var mo: MessageOptions;
+    mo = {};
+    if (typeof text == "string") {
+      mo.content = text;
     }
-
+    else {
+      mo.embeds = [text];
+    }
+    if (attachment) {
+      mo.files = [attachment];
+    }
+    if (row) {
+      mo.components = row;
+    }
+    if (interaction) {
+      try {
+        Log.debug('Interaction: ' + interaction.user);
+        await interaction.reply(mo);
+        return interaction.fetchReply() as Promise<Discord.Message<boolean>>;
+      }
+      catch (error) {
+        Log.error('Failed to reply to interaction.')
+        Log.error(error)
+      }
+    }
+    else {
+      return this._channel.send(mo);
+    }
   }
 }
 

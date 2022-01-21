@@ -17,8 +17,9 @@ import { Stats } from './types/Stats';
 import {
   Romfile,
 } from './Config';
+import { debug } from 'console';
 
-// TODO send audio to voice channel
+
 class GameboyClient {
   private _timer: NodeJS.Timeout | null;
   private _rendering: boolean;
@@ -27,6 +28,8 @@ class GameboyClient {
   private _keyRepeat: number;
   private _waitFrameCounter: number;
   private _gameboy;
+  private _hyperSpeed: boolean;
+
   constructor() {
     this._gameboy = new Gameboy();
     this._timer = null;
@@ -35,14 +38,24 @@ class GameboyClient {
     this._keysToPress = {};
     this._keyRepeat = 0;
     this._waitFrameCounter = 0;
+    this._hyperSpeed = false;
+  }
+
+  hyperSpeedOn(): void {
+    this._hyperSpeed = true;
   }
 
   loadRom(rom: Buffer): void {
     this._gameboy.loadRom(rom);
   }
 
-  doFrame(): void {
-    for (let i = 0; i < 10; i++) {
+  gameAdvance(): void {
+    var repeatAmount = 1;
+    if (this._hyperSpeed) {
+      this._hyperSpeed = false;
+      repeatAmount = 1000;
+    }
+    for (let i = 0; i < repeatAmount; i++) {
       this._gameboy.doFrame();
 
       if (this._waitFrameCounter > 0) {
@@ -71,9 +84,8 @@ class GameboyClient {
   }
 
   start(): void {
-    // very fast
-    this._timer = setInterval(() => this.doFrame(), 1);
-    //advance by several frames!
+    // this._timer = setInterval(() => this.gameAdvance(), 1);
+    this._timer = setInterval(() => this.gameAdvance(), 1000/60);
   }
 
   stop(): void {

@@ -1,20 +1,23 @@
 import Discord, {
   AwaitReactionsOptions,
-  User,
-  MessageReaction,
+  MessageActionRow,
+  MessageButton,
 } from 'discord.js';
 import fs from 'fs/promises';
 import { CurrentGamemode, DemocracyTimeout, Prefix } from '../Config';
 import { MAX_FAILED_ATTEMPTS } from '../Constants';
 import { getDiscordInstance } from '../DiscordClient';
 import { Gamemode } from '../enums/Gamemode';
-import { ButtonReaction, ReverseButtonReaction } from '../enums/ButtonReaction';
+// import { ButtonReaction, ReverseButtonReaction } from '../enums/ButtonReaction';
+import { ButtonIdMapping, ReverseButtonIdMapping } from '../enums/ButtonIdMapping';
 import { getGameboyInstance } from '../GameboyClient';
 import { Log } from '../Log';
-import { CollectedReactions } from '../types/CollectedReactions';
+// import { CollectedReactions } from '../types/CollectedReactions';
 import { Command } from '../types/Command';
-import { ReactionsCounter } from '../types/ReactionsCounter';
+// import { ReactionsCounter } from '../types/ReactionsCounter';
 import { RepeatReaction } from '../enums/RepeatReaction';
+
+var previousInteraction: Discord.MessageComponentInteraction<Discord.CacheType>;
 
 const command: Command = {
   names: ['frame', 'f'],
@@ -25,16 +28,11 @@ const command: Command = {
 
 function execute(): void {
   const client = getDiscordInstance();
-  if (client) {
-    if (client.sendingMessage) {
-      client.sendMessage('Please use the previous message.');
-    } else {
-      postFrame();
-    }
-  }
+  postFrame(true);
 }
 
-async function postFrame() {
+async function postFrame(isManuallyInvoked? : boolean) {
+  Log.debug ('In postFrame()');
   let reactionsLoaded = false;
   const buffer = getGameboyInstance().getFrame();
   const attachment = new Discord.MessageAttachment(buffer, 'frame.png');
@@ -42,14 +40,68 @@ async function postFrame() {
   if (!client) {
     throw new Error('Discord client not initialised');
   }
+  const firstRow = new MessageActionRow()
+    .addComponents(
+      new MessageButton()
+        .setCustomId('left')
+        .setLabel('⯇')
+        .setStyle('PRIMARY'),
+      new MessageButton()
+        .setCustomId('down')
+        .setLabel('⯆')
+        .setStyle('PRIMARY'),
+      new MessageButton()
+        .setCustomId('up')
+        .setLabel('⯅')
+        .setStyle('PRIMARY'),
+      new MessageButton()
+        .setCustomId('right')
+        .setLabel('⯈')
+        .setStyle('PRIMARY'),
+    );
+  const secondRow = new MessageActionRow()
+    .addComponents(
+      new MessageButton()
+        .setCustomId('a')
+        .setLabel('A')
+        .setStyle('SUCCESS'),
+      new MessageButton()
+        .setCustomId('b')
+        .setLabel('B')
+        .setStyle('SUCCESS'),
+      new MessageButton()
+        .setCustomId('start')
+        .setLabel('+')
+        .setStyle('DANGER'),
+      new MessageButton()
+        .setCustomId('select')
+        .setLabel('-')
+        .setStyle('DANGER'),
+      new MessageButton()
+        .setCustomId('refresh')
+        .setLabel('↺')
+        .setStyle('SECONDARY'),
+    );
 
-  const message = await client.sendMessage(
-    'Which button do you want to press?\n🔄 gives a new frame',
-    attachment
-  );
+  const allRows = [firstRow, secondRow];
+  var message;
+  if (previousInteraction && ! isManuallyInvoked) {
+    message = await client.sendMessage(
+      ' ',
+      attachment,
+      allRows,
+      previousInteraction
+    );
+  } else {
+    message = await client.sendMessage(
+      ' ',
+      attachment,
+      allRows
+    );
+  }
 
   try {
-    var filename = new Date().toISOString().replace(':','_')
+    var filename = new Date().toISOString().replace(':', '_')
     await fs.writeFile(
       `./frames/current/${filename}.png`,
       buffer
@@ -58,139 +110,28 @@ async function postFrame() {
     Log.error('Failed to write frame to disk');
   }
 
-  const awaitReactionOptions: AwaitReactionsOptions = {
-    time:
-      DemocracyTimeout +
-      (Object.values(ButtonReaction).length +
-        Object.values(RepeatReaction).length) *
-      1000,
-    dispose: true,
-  };
-  if (CurrentGamemode === Gamemode.Anarchy) {
-    awaitReactionOptions.max = 1;
-  } else {
-    awaitReactionOptions.max = 0;
-  }
-  const filter = (reaction: MessageReaction, user: User) => {
-    const buttonReaction =
-      ButtonReaction[reaction.emoji.name as keyof typeof ButtonReaction];
-    const repeatReaction =
-      RepeatReaction[reaction.emoji.name as keyof typeof RepeatReaction];
-    return (
-      (Object.values(ButtonReaction).includes(buttonReaction) ||
-        Object.values(RepeatReaction).includes(repeatReaction)) &&
-      !user.bot
-    );
-  };
-
   if (message == undefined) {
     Log.error('Message is undefined.');
     return;
   }
 
-  const collector = message.createReactionCollector({
-    filter,
-    time: awaitReactionOptions.time,
-    max: awaitReactionOptions.max
-  }
-  );
-  const collectedReactions: CollectedReactions = {};
+  const filter = () => true;
+  const collector = message.createMessageComponentCollector({ filter, max: 1 });
 
-  collector.on('collect', (reaction, user) => {
-    Log.info(`Collected ${reaction.emoji.name} from ${user.tag}`);
-    if (reaction.emoji.name != null) {
-      if (!collectedReactions.hasOwnProperty(reaction.emoji.name)) {
-        collectedReactions[reaction.emoji.name] = new Set();
-      }
-      collectedReactions[reaction.emoji.name].add(user.tag);
-    }
-  });
-
-  collector.on('remove', (reaction, user) => {
-    Log.info(`Removed ${reaction.emoji.name} from ${user.tag}`);
-    if (reaction.emoji.name != null) {
-      collectedReactions[reaction.emoji.name].delete(user.tag);
-    }
-  });
-
-  collector.on('end', () => {
-    const actionReactionsCounter: ReactionsCounter = {};
-    let maxActionValue = 0;
-    // Get top action
-    Object.keys(collectedReactions)
-      .filter((reaction) => Object.keys(ButtonReaction).includes(reaction))
-      .forEach((reaction) => {
-        const { size } = collectedReactions[reaction];
-        actionReactionsCounter[reaction] = size;
-        if (size > maxActionValue) {
-          maxActionValue = size;
-        }
-      });
-    const topReactions = Object.keys(actionReactionsCounter).filter(
-      (reaction) => actionReactionsCounter[reaction] === maxActionValue
-    );
-
-    // See if it's a repeated action, if so how much
-    const repeatReactionsCounter: ReactionsCounter = {};
-    let maxRepeatValue = 0;
-    Object.keys(collectedReactions)
-      .filter((reaction) => Object.keys(RepeatReaction).includes(reaction))
-      .forEach((reaction) => {
-        const { size } = collectedReactions[reaction];
-        repeatReactionsCounter[reaction] = size;
-        if (size > maxRepeatValue) {
-          maxRepeatValue = size;
-        }
-      });
-    const topRepeat = Object.keys(repeatReactionsCounter).filter(
-      (reaction) => repeatReactionsCounter[reaction] === maxRepeatValue
-    );
-
-    if (topReactions.length === 0 || maxActionValue === 0) {
-      client.sendMessage(`No choice was made.`);
-      client.failedAttempts++;
-    } else {
-      client.failedAttempts = 0;
-      const action: ReverseButtonReaction = topReactions[
-        Math.floor(Math.random() * topReactions.length)
-      ] as ReverseButtonReaction;
-      if (action === ReverseButtonReaction['🔄']) {
-        client.sendMessage('Giving new frame');
-      } else {
-        let repeat = 1;
-        if (topRepeat.length !== 0) {
-          client.failedAttempts = 0;
-          const repeatString =
-            topRepeat[Math.floor(Math.random() * topRepeat.length)];
-          repeat = RepeatReaction[repeatString];
-        }
-        const actionKey = ButtonReaction[action];
-
-        getGameboyInstance().pressKey(actionKey, repeat);
-        client.sendMessage(`Pressed ${action} ${repeat} time(s)`);
-      }
-    }
-    client.sendingMessage = false;
-    // Wait a bit so the keys are registered
-    if (reactionsLoaded) {
-      setTimeout(postNewFrame, 5000);
-    }
-  });
-
-  const emojis = Object.keys(ButtonReaction);
-  if (CurrentGamemode === Gamemode.Democracy) {
-    emojis.push(...Object.keys(RepeatReaction));
-  }
-
-  client.sendingMessage = true;
-  const reactionsPromise = emojis.map((reaction) => message.react(reaction));
-
-  Promise.all(reactionsPromise).then(() => {
-    reactionsLoaded = true;
-    if (!client.sendingMessage) {
-      postNewFrame();
-    }
-  });
+  // const collectedReactions: CollectedReactions = {};
+  const collectedButtonPushes =
+    collector.on('collect', async i => {
+      previousInteraction = i;
+      // i.reply({content: 'beep', ephemeral: true});
+      if (!i.isButton()) return;
+      const action = i.customId;
+      Log.info(`Collected ${action} from ${i.user}`);
+      const actionKey = ButtonIdMapping[action as keyof typeof ButtonIdMapping];
+      let repeat = 1;
+      getGameboyInstance().hyperSpeedOn();
+      getGameboyInstance().pressKey(actionKey, repeat);
+      setTimeout(() => {  postNewFrame(); }, (1000/60) + 1);
+    });
 }
 
 function postNewFrame() {
@@ -198,13 +139,7 @@ function postNewFrame() {
   if (!client) {
     throw new Error('Discord client not initialised');
   }
-  if (client.failedAttempts >= MAX_FAILED_ATTEMPTS) {
-    client.failedAttempts = 0;
-    client.sendMessage(`No choice was made after ${MAX_FAILED_ATTEMPTS} attempts, stopping automatic frame posting.
-Use command \`${Prefix}frame\` to start again.`);
-  } else {
     postFrame();
-  }
 }
 
 export = command;
