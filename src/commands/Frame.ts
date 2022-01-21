@@ -1,5 +1,5 @@
 import Discord, {
-  AwaitReactionsOptions,
+  Message,
   MessageActionRow,
   MessageButton,
 } from 'discord.js';
@@ -122,7 +122,6 @@ async function postFrame(isManuallyInvoked? : boolean) {
   const collectedButtonPushes =
     collector.on('collect', async i => {
       previousInteraction = i;
-      // i.reply({content: 'beep', ephemeral: true});
       if (!i.isButton()) return;
       const action = i.customId;
       Log.info(`Collected ${action} from ${i.user}`);
@@ -130,7 +129,12 @@ async function postFrame(isManuallyInvoked? : boolean) {
       let repeat = 1;
       getGameboyInstance().hyperSpeedOn();
       getGameboyInstance().pressKey(actionKey, repeat);
-      setTimeout(() => {  postNewFrame(); }, (1000/60) + 1);
+
+      const delay = (1000/60) + 1;
+
+      setTimeout(() => {  postNewFrame(); }, delay);
+      const previousMessage = i.message as Message <boolean>;
+      setTimeout(() => {previousMessage.edit({components: []});}, delay);
     });
 }
 
