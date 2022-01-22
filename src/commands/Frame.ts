@@ -119,8 +119,9 @@ async function postFrame(isManuallyInvoked?: boolean) {
   // const collectedReactions: CollectedReactions = {};
   const collectedButtonPushes =
     collector.on('collect', async i => {
-      previousInteraction = i;
       if (!i.isButton()) return;
+      previousInteraction = i;
+      // await i.deferReply({ephemeral: false});
       const action = i.customId;
       Log.info(`Collected ${action} from ${i.user}`);
       const actionKey = ButtonIdMapping[action as keyof typeof ButtonIdMapping];
@@ -132,7 +133,7 @@ async function postFrame(isManuallyInvoked?: boolean) {
 
       setTimeout(() => { postNewFrame(); }, delay);
       const previousMessage = i.message as Message<boolean>;
-      setTimeout(() => { previousMessage.edit({ components: [] }); }, delay);
+      setTimeout(() => { previousMessage.edit({ components: [] }); }, delay+5000);
       setTimeout(() => { collector.stop() }, 10000);
     });
 
